@@ -10,8 +10,12 @@ package frc.robot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 
-import com.revrobotics.CANSparkMax;
-import com.revrobotics.CANSparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.SparkBase.ResetMode;
+
 
 /**
  * This sample program shows how to control a motor using a joystick. In the
@@ -26,9 +30,10 @@ public class Robot extends TimedRobot {
   private static final int followDeviceID = 2;
   private static final int kJoystickPort = 0;
 
-  private CANSparkMax m_leadMotor;
-  private CANSparkMax m_followMotor;
-  private Joystick m_joystick;
+  private SparkMax leadMotor;
+  private SparkMax followMotor;
+  private SparkMaxConfig followMotorConfig;
+  private Joystick joystick;
 
   @Override
   public void robotInit() {
@@ -39,40 +44,52 @@ public class Robot extends TimedRobot {
      * first parameter
      * 
      * The motor type is passed as the second parameter. Motor type can either be:
-     *  com.revrobotics.CANSparkLowLevel.MotorType.kBrushless
-     *  com.revrobotics.CANSparkLowLevel.MotorType.kBrushed
+     *  com.revrobotics.spark.SparkLowLevel.MotorType.kBrushless
+     *  com.revrobotics.spark.SparkLowLevel.MotorType.kBrushed
      * 
      * The example below initializes two brushless motors with CAN IDs 1 and 2. Change
      * these parameters to match your setup
      */
-    m_leadMotor = new CANSparkMax(leadDeviceID, MotorType.kBrushless);
-    m_followMotor = new CANSparkMax(followDeviceID, MotorType.kBrushless);
+    leadMotor = new SparkMax(leadDeviceID, MotorType.kBrushless);
+    followMotor = new SparkMax(followDeviceID, MotorType.kBrushless);
+    /**
+     * We modify the followMotor's SPARK MAX configurator to follow the leadMotor by
+     * calling the follow() method and passing both the leader CAN ID and the invert value.
+     * If only the leader CAN ID is passed, invert will default to false. 
+     * 
+     * NOTE: Changes made in the configurator do not get applied until the configurator is passed 
+     * to the configure() method.
+     */
+    followMotorConfig = new SparkMaxConfig();
+    followMotorConfig.follow(leadDeviceID, false);
 
     /**
-     * The RestoreFactoryDefaults method can be used to reset the configuration parameters
-     * in the SPARK MAX to their factory default state. If no argument is passed, these
-     * parameters will not persist between power cycles
+     * The configure() method will apply the parameter changes to the motor its called from.
+     * 
+     * The first parameter is the configurator object which will contain all the changes
+     * we want to apply.
+     * 
+     * The second parameter is the reset mode and can be either:
+     *    kResetSafeParameters - Restore defaults before applying changes
+     *    kNoResetSafeParameters - Don't restore defaults before applying changes
+     * 
+     * The third parameter is the persist mode and can be either:
+     *    kPersistParameters -  Save settings onto SPARK MAX EEPROM
+     *    kNoPersistParameters -  Don't save settings onto SPARK MAX EEPROM
+     * 
      */
-    m_leadMotor.restoreFactoryDefaults();
-    m_followMotor.restoreFactoryDefaults();
+    followMotor.configure(followMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
 
-    /**
-     * In CAN mode, one SPARK MAX can be configured to follow another. This is done by calling
-     * the follow() method on the SPARK MAX you want to configure as a follower, and by passing
-     * as a parameter the SPARK MAX you want to configure as a leader.
-     */
-    m_followMotor.follow(m_leadMotor);
-
-    m_joystick = new Joystick(kJoystickPort);
+    joystick = new Joystick(kJoystickPort);
   }
 
   @Override
   public void teleopPeriodic() {
     /**
-     * m_followMotor will automatically follow whatever the applied output is on m_leadMotor.
+     * followMotor will automatically follow whatever the applied output is on leadMotor.
      * 
-     * Thus, set only needs to be called on m_leadMotor to control both of them
+     * Thus, set only needs to be called on leadMotor to control both of them
      */
-    m_leadMotor.set(m_joystick.getY());
+    leadMotor.set(joystick.getY());
   }
 }
