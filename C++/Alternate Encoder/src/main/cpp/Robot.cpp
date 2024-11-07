@@ -43,10 +43,7 @@ public:
          * not need to be set explicitly. If using a REV Through Bore
          * Encoder, the counts per revolution should be set to 8192.
          */
-        maxConfig.alternateEncoder
-            /** Configures the data port to use the alternate encoder */
-            .SetSparkMaxDataPortConfig()
-            .CountsPerRevolution(kCPR);
+        maxConfig.alternateEncoder.CountsPerRevolution(kCPR);
 
         /**
          * By default, the PID controller will use the Hall sensor from a NEO for its
