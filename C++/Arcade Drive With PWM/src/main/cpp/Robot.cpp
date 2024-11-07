@@ -17,9 +17,9 @@ class Robot : public frc::TimedRobot {
    * 
    * Change the PWM channels below to match your setup
    */
-  static const int leftPwmChannel = 0, rightPwmChannel = 1;
-  frc::PWMSparkMax m_leftMotor{leftPwmChannel};
-  frc::PWMSparkMax m_rightMotor{rightPwmChannel};
+  static constexpr int kLeftPwmChannel = 0, kRightPwmChannel = 1;
+  frc::PWMSparkMax m_leftMotor{kLeftPwmChannel};
+  frc::PWMSparkMax m_rightMotor{kRightPwmChannel};
   frc::DifferentialDrive m_robotDrive{m_leftMotor, m_rightMotor};
   frc::Joystick m_stick{0};
 
