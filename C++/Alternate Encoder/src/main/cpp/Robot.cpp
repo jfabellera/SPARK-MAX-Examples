@@ -32,7 +32,7 @@ class Robot : public frc::TimedRobot {
     rev::spark::SparkClosedLoopController m_pidController = m_motor.GetClosedLoopController();
 
     // PID coefficients
-    double kP = 0.4, kI = 1e-4, kD = 6, kIz = 0, kFF = 0, kMaxOutput = 1, kMinOutput = -1;
+    double kP = 0.1, kI = 1e-4, kD = 1, kIz = 0, kFF = 0, kMaxOutput = 1, kMinOutput = -1;
 
 public:
     void RobotInit() {
