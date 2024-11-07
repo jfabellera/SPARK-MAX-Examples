@@ -8,21 +8,19 @@
 #include <frc/TimedRobot.h>
 #include <frc/Joystick.h>
 #include <frc/smartdashboard/smartdashboard.h>
-#include "rev/CANSparkMax.h"
-
+#include "rev/SparkMax.h"
 
 
 class Robot : public frc::TimedRobot {
 
-
   // Here we define parameters that will be used to initialize a SparkMax 
   // object. We set the device ID to 1, and the motor type to brushless.
   // Change these parameters to match your setup.
-  static const int deviceID = 1;
-  static const auto motorType = rev::CANSparkMax::MotorType::kBrushless; // can also be kBrushed
+  static constexpr int kDeviceID = 1;
+  static constexpr auto kMotorType = rev::spark::SparkMax::MotorType::kBrushless; // can also be kBrushed
 
   // Initialize a SparkMax object called m_motor with the given parameters.
-  rev::CANSparkMax m_motor{deviceID, motorType};
+  rev::spark::SparkMax m_motor{kDeviceID, kMotorType};
 
   // For motor control, we use a single joystick in this example. Plug in any 
   // controller and use the joystick to control motor output when the robot is
