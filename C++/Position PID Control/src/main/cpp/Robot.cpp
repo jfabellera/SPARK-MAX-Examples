@@ -8,42 +8,55 @@
 #include <frc/Joystick.h>
 #include <frc/TimedRobot.h>
 #include <frc/SmartDashboard/SmartDashboard.h>
-#include "rev/CANSparkMax.h"
+#include "rev/SparkMax.h"
+#include "rev/config/ClosedLoopConfig.h"
+#include "rev/config/SparkMaxConfig.h"
 
 class Robot : public frc::TimedRobot {
-  // initialize motor
-  static const int deviceID = 9;
-  rev::CANSparkMax m_motor{deviceID, rev::CANSparkMax::MotorType::kBrushless};
+  /**
+   * Change these parameters to match your setup
+   */
+  static constexpr int kDeviceID = 1;
+  static constexpr auto kMotorType = rev::spark::SparkMax::MotorType::kBrushless;
+
+  // Initialize the SPARK MAX with device ID and motor type
+  rev::spark::SparkMax m_motor{ kDeviceID, kMotorType };
 
   /**
-   * In order to use PID functionality for a controller, a SparkPIDController object
-   * is constructed by calling the GetPIDController() method on an existing
-   * CANSparkMax object
+   * In order to use PID functionality for a controller, a ClosedLoopController object
+   * is constructed by calling the GetClosedLoopController() method on an existing
+   * SparkMax object.
    */
-  rev::SparkPIDController m_pidController = m_motor.GetPIDController();
+  rev::spark::SparkClosedLoopController m_pidController = m_motor.GetClosedLoopController();
 
   // Encoder object created to display position values
-  rev::SparkRelativeEncoder m_encoder = m_motor.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor);
+  rev::spark::SparkRelativeEncoder m_encoder = m_motor.GetEncoder();
 
   // PID coefficients
   double kP = 0.1, kI = 1e-4, kD = 1, kIz = 0, kFF = 0, kMaxOutput = 1, kMinOutput = -1;
 
  public:
   void RobotInit() {
-    /**
-     * The RestoreFactoryDefaults method can be used to reset the configuration parameters
-     * in the SPARK MAX to their factory default state. If no argument is passed, these
-     * parameters will not persist between power cycles
-     */
-    m_motor.RestoreFactoryDefaults();
-    
+    rev::spark::SparkMaxConfig maxConfig;
+
+    maxConfig.closedLoop
+      .SetFeedbackSensor(rev::spark::ClosedLoopConfig::FeedbackSensor::kPrimaryEncoder);
+
     // set PID coefficients
-    m_pidController.SetP(kP);
-    m_pidController.SetI(kI);
-    m_pidController.SetD(kD);
-    m_pidController.SetIZone(kIz);
-    m_pidController.SetFF(kFF);
-    m_pidController.SetOutputRange(kMinOutput, kMaxOutput);
+    maxConfig.closedLoop
+      .Pidf(kP, kI, kD, kFF)
+      .IZone(kIz)
+      .OutputRange(kMinOutput, kMaxOutput);
+
+    /**
+     * The ResetMode::kResetSafeParameters constant can be used to reset
+     * the configuration parameters in the SPARK MAX to their factory
+     * default state. If PersistMode::kNoPersistParameters is passed,
+     * these parameters will not persist between power cycles.
+     */
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
 
     // display PID coefficients on SmartDashboard
     frc::SmartDashboard::PutNumber("P Gain", kP);
@@ -67,15 +80,22 @@ class Robot : public frc::TimedRobot {
     double rotations = frc::SmartDashboard::GetNumber("Set Rotations", 0);
 
     // if PID coefficients on SmartDashboard have changed, write new values to controller
-    if((p != kP)) { m_pidController.SetP(p); kP = p; }
-    if((i != kI)) { m_pidController.SetI(i); kI = i; }
-    if((d != kD)) { m_pidController.SetD(d); kD = d; }
-    if((iz != kIz)) { m_pidController.SetIZone(iz); kIz = iz; }
-    if((ff != kFF)) { m_pidController.SetFF(ff); kFF = ff; }
-    if((max != kMaxOutput) || (min != kMinOutput)) { 
-      m_pidController.SetOutputRange(min, max); 
-      kMinOutput = min; kMaxOutput = max; 
+    rev::spark::ClosedLoopConfig pidConfig;
+    if ((p != kP)) { pidConfig.P(p); kP = p; }
+    if ((i != kI)) { pidConfig.I(i); kI = i; }
+    if ((d != kD)) { pidConfig.D(d); kD = d; }
+    if ((iz != kIz)) { pidConfig.IZone(iz); kIz = iz; }
+    if ((ff != kFF)) { pidConfig.VelocityFF(ff); kFF = ff; }
+    if ((max != kMaxOutput) || (min != kMinOutput)) {
+      pidConfig.OutputRange(min, max);
+      kMinOutput = min; kMaxOutput = max;
     }
+
+    rev::spark::SparkMaxConfig maxConfig;
+    maxConfig.Apply(pidConfig);
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kNoResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
 
     /**
      * PIDController objects are commanded to a set point using the 
@@ -86,12 +106,12 @@ class Robot : public frc::TimedRobot {
      * 
      * The second parameter is the control type can be set to one of four 
      * parameters:
-     *  rev::CANSparkMax::ControlType::kDutyCycle
-     *  rev::CANSparkMax::ControlType::kPosition
-     *  rev::CANSparkMax::ControlType::kVelocity
-     *  rev::CANSparkMax::ControlType::kVoltage
+     *  rev::spark::SparkMax::ControlType::kDutyCycle
+     *  rev::spark::SparkMax::ControlType::kPosition
+     *  rev::spark::SparkMax::ControlType::kVelocity
+     *  rev::spark::SparkMax::ControlType::kVoltage
      */
-    m_pidController.SetReference(rotations, rev::CANSparkMax::ControlType::kPosition);
+    m_pidController.SetReference(rotations, rev::spark::SparkMax::ControlType::kPosition);
     
     frc::SmartDashboard::PutNumber("SetPoint", rotations);
     frc::SmartDashboard::PutNumber("ProcessVariable", m_encoder.GetPosition());
