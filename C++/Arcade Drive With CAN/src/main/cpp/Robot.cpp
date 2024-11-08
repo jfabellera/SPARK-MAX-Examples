@@ -19,7 +19,7 @@ class Robot : public frc::TimedRobot {
    * first parameter
    * 
    * The motor type is passed as the second parameter. Motor type can either be:
-   *  kMotorType
+   *  rev::spark::SparkMax::MotorType::kBrushless
    *  rev::spark::SparkMax::MotorType::kBrushed
    * 
    * The example below initializes four brushless motors with CAN IDs 1, 2, 3 and 4. Change
