@@ -73,17 +73,6 @@ class Robot : public frc::TimedRobot {
   void TeleopPeriodic() {
     m_motor.Set(m_stick.GetY());
 
-    rev::spark::SparkMaxConfig maxConfig;
-
-    // enable/disable limit switches based on value read from SmartDashboard
-    maxConfig.limitSwitch
-      .ForwardLimitSwitchEnabled(frc::SmartDashboard::GetBoolean("Forward Limit Enabled", false))
-      .ReverseLimitSwitchEnabled(frc::SmartDashboard::GetBoolean("Reverse Limit Enabled", false));
-
-    m_motor.Configure(maxConfig,
-      rev::spark::SparkMax::ResetMode::kNoResetSafeParameters,
-      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
-
     /**
      * The Get() method can be used on a SparkLimitSwitch object to read the state of the switch.
      * 
