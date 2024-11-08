@@ -8,58 +8,60 @@
 #include <frc/Joystick.h>
 #include <frc/TimedRobot.h>
 #include <frc/smartdashboard/smartdashboard.h>
-#include "rev/CANSparkMax.h"
+#include "rev/SparkMax.h"
+#include "rev/config/SparkMaxConfig.h"
+#include "rev/config/SparkMaxConfigAccessor.h"
 
 class Robot : public frc::TimedRobot {
   /**
-   * deviceID is the CAN ID of the SPARK MAX you are using.
-   * Change to match your setup
+   * Change these parameters to match your setup
    */
-  static const int deviceID = 1;
-  rev::CANSparkMax m_motor{deviceID, rev::CANSparkMax::MotorType::kBrushless};
+  static constexpr int kDeviceID = 1;
+  static constexpr auto kMotorType = rev::spark::SparkMax::MotorType::kBrushless;
+
+  // Initialize the SPARK MAX with device ID and motor type
+  rev::spark::SparkMax m_motor{ kDeviceID, kMotorType };
 
   frc::Joystick m_stick{0};
 
  public:
   void RobotInit() {
-    /**
-     * The RestoreFactoryDefaults method can be used to reset the configuration parameters
-     * in the SPARK MAX to their factory default state. If no argument is passed, these
-     * parameters will not persist between power cycles
-     */
-    m_motor.RestoreFactoryDefaults();
+      rev::spark::SparkMaxConfig maxConfig;
 
     /**
-     * Parameters can be set by calling the appropriate Set method on the CANSparkMax object
-     * whose properties you want to change
-     * 
-     * Set methods will return one of three REVLibError values which will let you know if the 
-     * parameter was successfully set:
-     *  REVLibError::kOk
-     *  REVLibError::kError
-     *  REVLibError::kTimeout
+     * Parameters can be set by calling the appropriate method on the SparkMaxConfig object
+     * whose properties you want to change.
      */
-    if(m_motor.SetIdleMode(rev::CANSparkMax::IdleMode::kCoast) != rev::REVLibError::kOk) {
-      frc::SmartDashboard::PutString("Idle Mode", "Error");
-    }
+    maxConfig.SetIdleMode(rev::spark::SparkMaxConfig::IdleMode::kCoast);
 
     /**
-     * Similarly, parameters will have a Get method which allows you to retrieve their values
-     * from the controller
+     * The ResetMode::kResetSafeParameters constant can be used to reset
+     * the configuration parameters in the SPARK MAX to their factory
+     * default state. If PersistMode::kNoPersistParameters is passed,
+     * these parameters will not persist between power cycles.
      */
-    if(m_motor.GetIdleMode() == rev::CANSparkMax::IdleMode::kCoast) {
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
+
+    /**
+     * Similarly, parameters can be retrieved by calling the appropriate
+     * methods on the Accessor object.
+     */
+    if(m_motor.configAccessor.GetIdleMode() == rev::spark::SparkMaxConfig::IdleMode::kCoast) {
       frc::SmartDashboard::PutString("Idle Mode", "Coast");
     } else {
       frc::SmartDashboard::PutString("Idle Mode", "Brake");
     }
 
     // Set ramp rate to 0
-    if(m_motor.SetOpenLoopRampRate(0) != rev::REVLibError::kOk) {
-      frc::SmartDashboard::PutString("Ramp Rate", "Error");
-    }
+    maxConfig.OpenLoopRampRate(0);
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kNoResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
 
     // read back ramp rate value
-    frc::SmartDashboard::PutNumber("Ramp Rate", m_motor.GetOpenLoopRampRate());
+    frc::SmartDashboard::PutNumber("Ramp Rate", m_motor.configAccessor.GetOpenLoopRampRate());
   }
   
   void TeleopPeriodic() {
