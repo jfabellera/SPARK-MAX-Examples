@@ -50,9 +50,7 @@ public:
     maxConfig.encoder.CountsPerRevolution(4096);
 
     /**
-     * By default, the PID controller will use the Hall sensor from a NEO for its
-     * feedback device. Instead, we can set the feedback device to the primary
-     * encoder object.
+     * Set the feedback device to the primary encoder object.
      */
     maxConfig.closedLoop
       .SetFeedbackSensor(rev::spark::ClosedLoopConfig::FeedbackSensor::kPrimaryEncoder);
