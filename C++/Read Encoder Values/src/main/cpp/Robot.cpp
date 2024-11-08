@@ -5,51 +5,127 @@
 /* the project.                                                               */
 /*----------------------------------------------------------------------------*/
 
-#include <frc/Joystick.h>
 #include <frc/TimedRobot.h>
-#include <frc/smartdashboard/SmartDashboard.h>
-#include "rev/CANSparkMax.h"
+#include <frc/smartdashboard/smartdashboard.h>
+#include "rev/SparkMax.h"
+#include "rev/config/ClosedLoopConfig.h"
+#include "rev/config/SparkMaxConfig.h"
 
-/**
- * Sample program displaying position and velocity on the SmartDashboard
- * 
- * Position is displayed in revolutions and velocity is displayed in RPM
- */
+
 class Robot : public frc::TimedRobot {
-  // initialize SPARK MAX
-  static const int deviceID = 1;
-  rev::CANSparkMax m_motor{deviceID, rev::CANSparkMax::MotorType::kBrushless};
 
   /**
-   * In order to read encoder values an encoder object is created using the 
-   * GetEncoder() method from an existing CANSparkMax object
+   * Change these parameters to match your setup
    */
-  rev::SparkRelativeEncoder m_encoder = m_motor.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor);
+  static constexpr int kDeviceID = 1;
+  static constexpr auto kMotorType = rev::spark::SparkMax::MotorType::kBrushless;
 
-  frc::Joystick m_stick{0};
+  // Initialize the SPARK MAX with device ID and motor type
+  rev::spark::SparkMax m_motor{ kDeviceID, kMotorType };
+
+  /**
+   * A SparkAnalogSensor object is constructed using the GetAnalog() method on an 
+   * existing SparkMax object. 
+   */
+  rev::spark::SparkAnalogSensor m_analogSensor = m_motor.GetAnalog();
+
+  /**
+   * In order to use PID functionality for a controller, a ClosedLoopController object
+   * is constructed by calling the GetClosedLoopController() method on an existing
+   * SparkMax object. 
+   */
+  rev::spark::SparkClosedLoopController m_pidController = m_motor.GetClosedLoopController();
+
+  // PID coefficients
+  double kP = 0.1, kI = 1e-4, kD = 1, kIz = 0, kFF = 0, kMaxOutput = 1, kMinOutput = -1;
 
  public:
-  Robot() { }
-
-  void TeleopPeriodic() override {
-    // set the motor output based on jostick position
-    m_motor.Set(m_stick.GetY());
+  void RobotInit() {
+    rev::spark::SparkMaxConfig maxConfig;
 
     /**
-     * Encoder position is read from a SparkRelativeEncoder object by calling the
-     * GetPosition() method.
-     * 
-     * GetPosition() returns the position of the encoder in units of revolutions
+     * The PID Controller can be configured to use the analog sensor as its feedback
+     * device with the method SetFeedbackSensor() and passing the kAnalogSensor
+     * constant.
      */
-    frc::SmartDashboard::PutNumber("Encoder Position", m_encoder.GetPosition());
+    maxConfig.closedLoop
+      .SetFeedbackSensor(rev::spark::ClosedLoopConfig::FeedbackSensor::kAnalogSensor);
+
+    // set PID coefficients
+    maxConfig.closedLoop
+      .Pidf(kP, kI, kD, kFF)
+      .IZone(kIz)
+      .OutputRange(kMinOutput, kMaxOutput);
+
+    // display PID coefficients on SmartDashboard
+    frc::SmartDashboard::PutNumber("P Gain", kP);
+    frc::SmartDashboard::PutNumber("I Gain", kI);
+    frc::SmartDashboard::PutNumber("D Gain", kD);
+    frc::SmartDashboard::PutNumber("I Zone", kIz);
+    frc::SmartDashboard::PutNumber("Feed Forward", kFF);
+    frc::SmartDashboard::PutNumber("Max Output", kMaxOutput);
+    frc::SmartDashboard::PutNumber("Min Output", kMinOutput);
+    frc::SmartDashboard::PutNumber("Set Rotations", 0);
 
     /**
-     * Encoder velocity is read from a SparkRelativeEncoder object by calling the
-     * GetVelocity() method.
-     * 
-     * GetVelocity() returns the velocity of the encoder in units of RPM
+     * The ResetMode::kResetSafeParameters constant can be used to reset
+     * the configuration parameters in the SPARK MAX to their factory
+     * default state. If PersistMode::kNoPersistParameters is passed,
+     * these parameters will not persist between power cycles.
      */
-    frc::SmartDashboard::PutNumber("Encoder Velocity", m_encoder.GetVelocity());
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
+  }
+
+  void TeleopPeriodic() {
+    // read PID coefficients from SmartDashboard
+    double p = frc::SmartDashboard::GetNumber("P Gain", 0);
+    double i = frc::SmartDashboard::GetNumber("I Gain", 0);
+    double d = frc::SmartDashboard::GetNumber("D Gain", 0);
+    double iz = frc::SmartDashboard::GetNumber("I Zone", 0);
+    double ff = frc::SmartDashboard::GetNumber("Feed Forward", 0);
+    double max = frc::SmartDashboard::GetNumber("Max Output", 0);
+    double min = frc::SmartDashboard::GetNumber("Min Output", 0);
+    double rotations = frc::SmartDashboard::GetNumber("Set Rotations", 0);
+
+    // if PID coefficients on SmartDashboard have changed, write new values to controller
+    rev::spark::ClosedLoopConfig pidConfig;
+    if ((p != kP)) { pidConfig.P(p); kP = p; }
+    if ((i != kI)) { pidConfig.I(i); kI = i; }
+    if ((d != kD)) { pidConfig.D(d); kD = d; }
+    if ((iz != kIz)) { pidConfig.IZone(iz); kIz = iz; }
+    if ((ff != kFF)) { pidConfig.VelocityFF(ff); kFF = ff; }
+    if ((max != kMaxOutput) || (min != kMinOutput)) {
+      pidConfig.OutputRange(min, max);
+      kMinOutput = min; kMaxOutput = max;
+    }
+
+    rev::spark::SparkMaxConfig maxConfig;
+    maxConfig.Apply(pidConfig);
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kNoResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
+
+    /**
+     * PIDController objects are commanded to a set point using the
+     * SetReference() method.
+     *
+     * The first parameter is the value of the set point, whose units vary
+     * depending on the control type set in the second parameter.
+     *
+     * The second parameter is the control type can be set to one of four
+     * parameters:
+     *  rev::spark::SparkMax::ControlType::kDutyCycle
+     *  rev::spark::SparkMax::ControlType::kPosition
+     *  rev::spark::SparkMax::ControlType::kVelocity
+     *  rev::spark::SparkMax::ControlType::kVoltage
+     */
+    m_pidController.SetReference(rotations, rev::spark::SparkMax::ControlType::kPosition);
+
+    frc::SmartDashboard::PutNumber("SetPoint", rotations);
+    frc::SmartDashboard::PutNumber("ProcessVariable", m_analogSensor.GetPosition());
+
   }
 };
 
