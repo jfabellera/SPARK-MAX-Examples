@@ -95,7 +95,7 @@ public class Robot extends TimedRobot {
       .reverseSoftLimitEnabled(reverseLimitEnabled);
       
     /*
-     * Set the idle mode in the SparkMaxBase config to brake mode
+     * Set the idle mode in the SparkBaseConfig to brake mode
      * There are two idle modes to choose from:
      *    - IdleMode.kBrake : Will short the phases of the motor to stop the rotor immediately and 
      *                        resist change
