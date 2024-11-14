@@ -1,7 +1,7 @@
 # Analog Feedback Device
 
 ### Description
-This example shows how to use an analog sensor as the feedback device for the PID controller of a REV NEO Brushless Motor instead of the NEO's built-in hall sensor. For demonstration, the PID controller will be used to set the motor position.
+This example shows how to use an analog sensor as the feedback device for the closed loop controller of a REV NEO Brushless Motor instead of the NEO's built-in hall sensor. For demonstration, the closed loop controller will be used to drive the motor to the target position setpoint.
 
 ### Usage
 Set the variables at the beginning of the example to match your setup.
