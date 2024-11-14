@@ -80,7 +80,7 @@ public class Robot extends TimedRobot {
     motorConfig = new SparkMaxConfig();
 
     /*
-     *  Here we access the softLimit sub config within the SparkMaxBaseConfig to change the
+     *  Here we access the softLimit sub config within the SparkBaseConfig to change the
      *  forward and reverse limit parameters by chaining together setter functions.
      *  This is equivalent to:
      *    MotorConfig.softLimit.forwardSoftLimit(forwardLimitValue);
