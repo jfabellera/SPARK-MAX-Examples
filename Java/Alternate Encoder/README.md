@@ -7,7 +7,6 @@ This example shows how to use an alternate encoder as the feedback device for th
 Set the variables at the beginning of the example to match your setup.
 - `kCanID` - CAN device ID
 - `kMotorType` - Motor type
-- `kAltEncType` - Alternate encoder type
 - `kCPR` - Alternate encoder counts per revolution
 
 PID Coefficients can be adjusted on SmartDashboard as well as the set rotations (position setpoint). 
