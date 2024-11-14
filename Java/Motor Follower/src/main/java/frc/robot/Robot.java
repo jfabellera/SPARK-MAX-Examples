@@ -33,62 +33,98 @@ public class Robot extends TimedRobot {
   private SparkMax leadMotor;
   private SparkMax followMotor;
   private SparkMaxConfig followMotorConfig;
+  private SparkMaxConfig emptyConfig;
   private Joystick joystick;
 
   @Override
   public void robotInit() {
-    /**
-     * SPARK MAX controllers are intialized over CAN by constructing a CANSparkMax object
-     * 
-     * The CAN ID, which can be configured using the SPARK MAX Client, is passed as the
-     * first parameter
-     * 
-     * The motor type is passed as the second parameter. Motor type can either be:
-     *  com.revrobotics.spark.SparkLowLevel.MotorType.kBrushless
-     *  com.revrobotics.spark.SparkLowLevel.MotorType.kBrushed
-     * 
-     * The example below initializes two brushless motors with CAN IDs 1 and 2. Change
-     * these parameters to match your setup
+    /*
+     * Create two SPARK MAX object with the desired CAN-IDs and types of motors connected
+     * MotorType can be either:
+     *    - MotorType.kBrushless
+     *    - MotorType.kBrushed
      */
     leadMotor = new SparkMax(leadDeviceID, MotorType.kBrushless);
     followMotor = new SparkMax(followDeviceID, MotorType.kBrushless);
-    /**
-     * We modify the followMotor's SPARK MAX configurator to follow the leadMotor by
-     * calling the follow() method and passing both the leader CAN ID and the invert value.
-     * If only the leader CAN ID is passed, invert will default to false. 
+    /*
+     * Create a SparkBaseConfig object that will queue up any changes we want applied to one or more SPARK MAXs.
+     * The configuration objects use setter functions that allow for chaining.
+     *  
+     * Changes made in the config will not get applied to the SPARK MAX until the configure() method is called 
+     * from a SPARK MAX object. If a SparkBaseConfig with no changes is passed to the configure() method, the SPARK 
+     * MAX's configuration will remain unchanged.
      * 
-     * NOTE: Changes made in the configurator do not get applied until the configurator is passed 
-     * to the configure() method.
+     * Within the base config, the following can be modified:
+     *    - Follower Mode
+     *    - Voltage Compensation
+     *    - Idle modes
+     *    - Motor inversion settings
+     *    - Closed/Open Ramp Rates
+     *    - Current Limits
+     * 
+     * The base config also contains sub configs that can be modified such as:
+     *    - AbsoluteEncoderConfig
+     *    - AlternateEncoderConfig
+     *    - Analog Sensor Config
+     *    - ClosedLoopConfig
+     *    - EncoderConfig
+     *    - LimitSwitchConfig
+     *    - SoftLimitConfig
+     *    - SignalsConfig (Status Frames)
+     *  
+     * Sub config objects can separately be created, modified and then applied to the base config by calling the apply() method.
      */
+    emptyConfig = new SparkMaxConfig();
     followMotorConfig = new SparkMaxConfig();
+
+    /*
+     * For the follower motor config, we setup follower mode by calling
+     * the follow() method from the SparkMaxConfig object.
+     * 
+     * The following are passed in as arguments:
+     *    1. CAN-ID of the leader motor
+     *    2. Inversion value for the follower motor
+     */
     followMotorConfig.follow(leadDeviceID, false);
 
-    /**
-     * The configure() method will apply the parameter changes to the motor its called from.
+    /*
+     * After making all the changes in the SparkBaseConfig object (followerMotorConfig in this case), 
+     * we apply them to the SPARK MAX by calling the configure() method.
      * 
-     * The first parameter is the configurator object which will contain all the changes
-     * we want to apply.
+     * The first argument passed is the SparkBaseConfig object containing any parameter changes we 
+     * want applied
      * 
-     * The second parameter is the reset mode and can be either:
-     *    kResetSafeParameters - Restore defaults before applying changes
-     *    kNoResetSafeParameters - Don't restore defaults before applying changes
+     * The second argument passed is the ResetMode which uses: 
+     *    - kResetSafeParameters: Restore defaults before applying parameter changes
+     *    - kNoResetSafeParameters:  Don't restore defaults before applying parameter changes
      * 
-     * The third parameter is the persist mode and can be either:
-     *    kPersistParameters -  Save settings onto SPARK MAX EEPROM
-     *    kNoPersistParameters -  Don't save settings onto SPARK MAX EEPROM
+     * The third argument passed is the PersistMode which uses:
+     *    - kNoPersistParameters: Parameters will be not persist over power cycles
+     *    - kPersistParameters: Parameters will persist over power cycles
      * 
+     * In this case we will be restoring defaults, then applying our parameter values that will not 
+     * persist over power cycles for the follower motor. For the leader motor, we will only restore 
+     * defaults.
      */
-    followMotor.configure(followMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kPersistParameters);
+    followMotor.configure(followMotorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+    leadMotor.configure(emptyConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
+    /*
+     * Create joystick object to serve as an input for controlling the leader motor
+     */
     joystick = new Joystick(kJoystickPort);
   }
 
   @Override
   public void teleopPeriodic() {
-    /**
-     * followMotor will automatically follow whatever the applied output is on leadMotor.
+    /*
+     * The SparkMax object's set() method is used for duty cycle control and determines the 
+     * percentage of the input voltage we want applied on the motor as a decimal (-1 to 1).
      * 
-     * Thus, set only needs to be called on leadMotor to control both of them
+     * Here we are directly using the joystick's y-axis value (-1 to 1) as the duty cycle input.
+     * 
+     * Since the follower motor is following the leader motor, the follower motor will apply the 
+     * same duty cycle as the leader.
      */
     leadMotor.set(joystick.getY());
   }
