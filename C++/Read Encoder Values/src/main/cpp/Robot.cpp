@@ -8,7 +8,7 @@
 #include <frc/Joystick.h>
 #include <frc/TimedRobot.h>
 #include <frc/smartdashboard/SmartDashboard.h>
-#include "rev/CANSparkMax.h"
+#include "rev/SparkMax.h"
 
 /**
  * Sample program displaying position and velocity on the SmartDashboard
@@ -16,15 +16,20 @@
  * Position is displayed in revolutions and velocity is displayed in RPM
  */
 class Robot : public frc::TimedRobot {
-  // initialize SPARK MAX
-  static const int deviceID = 1;
-  rev::CANSparkMax m_motor{deviceID, rev::CANSparkMax::MotorType::kBrushless};
+  /**
+   * Change these parameters to match your setup
+   */
+  static constexpr int kDeviceID = 1;
+  static constexpr auto kMotorType = rev::spark::SparkMax::MotorType::kBrushless;
+
+  // Initialize the SPARK MAX with device ID and motor type
+  rev::spark::SparkMax m_motor{ kDeviceID, kMotorType };
 
   /**
    * In order to read encoder values an encoder object is created using the 
-   * GetEncoder() method from an existing CANSparkMax object
+   * GetEncoder() method from an existing SparkMax object
    */
-  rev::SparkRelativeEncoder m_encoder = m_motor.GetEncoder(rev::SparkRelativeEncoder::Type::kHallSensor);
+  rev::spark::SparkRelativeEncoder m_encoder = m_motor.GetEncoder();
 
   frc::Joystick m_stick{0};
 
@@ -32,7 +37,7 @@ class Robot : public frc::TimedRobot {
   Robot() { }
 
   void TeleopPeriodic() override {
-    // set the motor output based on jostick position
+    // set the motor output based on joystick position
     m_motor.Set(m_stick.GetY());
 
     /**

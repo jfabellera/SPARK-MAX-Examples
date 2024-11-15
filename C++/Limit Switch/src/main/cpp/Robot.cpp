@@ -8,29 +8,43 @@
 #include <frc/Joystick.h>
 #include <frc/TimedRobot.h>
 #include <frc/smartdashboard/smartdashboard.h>
-#include "rev/CANSparkMax.h"
+#include "rev/SparkMax.h"
+#include "rev/config/SparkMaxConfig.h"
+#include "rev/config/LimitSwitchConfig.h"
 
 class Robot : public frc::TimedRobot {
-  // initialize SPARK MAX with CAN ID
-  static const int deviceID = 1;
-  rev::CANSparkMax m_motor{deviceID, rev::CANSparkMax::MotorType::kBrushless};
+    /**
+     * Change these parameters to match your setup
+     */
+    static constexpr int kDeviceID = 1;
+    static constexpr auto kMotorType = rev::spark::SparkMax::MotorType::kBrushless;
+
+    // Initialize the SPARK MAX with device ID and motor type
+    rev::spark::SparkMax m_motor{ kDeviceID, kMotorType };
 
   /**
    * A SparkLimitSwitch object is constructed using the GetForwardLimitSwitch() or
-   * GetReverseLimitSwitch() method on an existing CANSparkMax object, depending
-   * on which direction you would like to limit
-   * 
-   * Limit switches can be configured to one of two polarities:
-   *  rev::SparkLimitSwitch::Type::kNormallyOpen
-   *  rev::SparkLimitSwitch::Type::kNormallyClosed
+   * GetReverseLimitSwitch() method on an existing SparkMax object, depending
+   * on which direction you would like to limit.
    */
-  rev::SparkLimitSwitch m_forwardLimit = m_motor.GetForwardLimitSwitch(rev::SparkLimitSwitch::Type::kNormallyClosed);
-  rev::SparkLimitSwitch m_reverseLimit = m_motor.GetReverseLimitSwitch(rev::SparkLimitSwitch::Type::kNormallyClosed);
+  rev::spark::SparkLimitSwitch m_forwardLimit = m_motor.GetForwardLimitSwitch();
+  rev::spark::SparkLimitSwitch m_reverseLimit = m_motor.GetReverseLimitSwitch();
 
   frc::Joystick m_stick{0};
 
  public:
   void RobotInit() {
+    rev::spark::SparkMaxConfig maxConfig;
+
+    /**
+     * Limit switches can be configured to one of two polarities :
+     *   rev::spark::SparkLimitSwitch::Type::kNormallyOpen
+     *   rev::spark::SparkLimitSwitch::Type::kNormallyClosed
+     */
+    maxConfig.limitSwitch
+      .ForwardLimitSwitchType(rev::spark::LimitSwitchConfig::Type::kNormallyClosed)
+      .ReverseLimitSwitchType(rev::spark::LimitSwitchConfig::Type::kNormallyClosed);
+
     /**
      * Limit switches are enabled by default when the are intialized. They can be disabled
      * by calling enableLimitSwitch(false) on a SparkLimitSwitch object
@@ -39,17 +53,25 @@ class Robot : public frc::TimedRobot {
      * 
      * The isLimitSwitchEnabled() method can be used to check if the limit switch is enabled
      */
-    m_forwardLimit.EnableLimitSwitch(false);
-    m_reverseLimit.EnableLimitSwitch(false);
-    frc::SmartDashboard::PutBoolean("Forward Limit Enabled", m_forwardLimit.IsLimitSwitchEnabled());
-    frc::SmartDashboard::PutBoolean("Reverse Limit Enabled", m_reverseLimit.IsLimitSwitchEnabled());
+    maxConfig.limitSwitch
+      .ForwardLimitSwitchEnabled(false)
+      .ReverseLimitSwitchEnabled(false);
+
+    /**
+     * The ResetMode::kResetSafeParameters constant can be used to reset
+     * the configuration parameters in the SPARK MAX to their factory
+     * default state. If PersistMode::kNoPersistParameters is passed,
+     * these parameters will not persist between power cycles.
+     */
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
+
+    frc::SmartDashboard::PutBoolean("Forward Limit Enabled", m_motor.configAccessor.limitSwitch.GetForwardLimitSwitchEnabled());
+    frc::SmartDashboard::PutBoolean("Reverse Limit Enabled", m_motor.configAccessor.limitSwitch.GetReverseLimitSwitchEnabled());
   }
   void TeleopPeriodic() {
     m_motor.Set(m_stick.GetY());
-
-    // enable/disable limit switches based on value read from SmartDashboard
-    m_forwardLimit.EnableLimitSwitch(frc::SmartDashboard::GetBoolean("Forward Limit Enabled", false));
-    m_reverseLimit.EnableLimitSwitch(frc::SmartDashboard::GetBoolean("Reverse Limit Enabled", false));
 
     /**
      * The Get() method can be used on a SparkLimitSwitch object to read the state of the switch.
