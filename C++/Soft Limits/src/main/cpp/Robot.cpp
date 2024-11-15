@@ -8,64 +8,97 @@
 #include <frc/Joystick.h>
 #include <frc/TimedRobot.h>
 #include <frc/smartdashboard/smartdashboard.h>
-#include "rev/CANSparkMax.h"
+#include "rev/SparkMax.h"
+#include "rev/config/SoftLimitConfig.h"
+#include "rev/config/SparkMaxConfig.h"
+
 
 class Robot : public frc::TimedRobot {
-  // initialize SPARK MAX with CAN ID
-  static const int deviceID = 1;
-  rev::CANSparkMax m_motor{deviceID, rev::CANSparkMax::MotorType::kBrushless};
+  /**
+   * Change these parameters to match your setup
+   */
+  static constexpr int kDeviceID = 1;
+  static constexpr auto kMotorType = rev::spark::SparkMax::MotorType::kBrushless;
+
+  // Initialize the SPARK MAX with device ID and motor type
+  rev::spark::SparkMax m_motor{ kDeviceID, kMotorType };
 
   frc::Joystick m_stick{0};
 
+  bool fwdEnabled{ false }, revEnabled{ false };
+  double fwdLimit{ 0.0 }, revLimit{ 0.0 };
+
  public:
   void RobotInit() {
-    /**
-     * The RestoreFactoryDefaults method can be used to reset the configuration parameters
-     * in the SPARK MAX to their factory default state. If no argument is passed, these
-     * parameters will not persist between power cycles
-     */
-    m_motor.RestoreFactoryDefaults();
+    rev::spark::SparkMaxConfig maxConfig;
 
     /**
      * Soft Limits restrict the motion of the motor in a particular direction
-     * at a particular point. Soft limits can be applied in only one direction, 
+     * at a particular point. Soft limits can be applied in only one direction,
      * or both directions at the same time. 
      * 
      * If the soft limits are disabled and then re-enabled, they will retain
      * the last limits that they had for that particular direction.
-     * 
-     * The directions are rev::CANSparkMax::kForward and rev::CANSparkMax::kReverse
      */
-    m_motor.EnableSoftLimit(rev::CANSparkMax::SoftLimitDirection::kForward, true);
-    m_motor.EnableSoftLimit(rev::CANSparkMax::SoftLimitDirection::kReverse, true);
+    maxConfig.softLimit
+      .ForwardSoftLimitEnabled(true)
+      .ReverseSoftLimitEnabled(true)
+      .ForwardSoftLimit(15.0)
+      .ReverseSoftLimit(0.0);
 
-    m_motor.SetSoftLimit(rev::CANSparkMax::SoftLimitDirection::kForward, 15);
-    m_motor.SetSoftLimit(rev::CANSparkMax::SoftLimitDirection::kReverse, 0);
-    
-    frc::SmartDashboard::PutBoolean("Forward Soft Limit Enabled", 
-                                    m_motor.IsSoftLimitEnabled(rev::CANSparkMax::SoftLimitDirection::kForward));
-    frc::SmartDashboard::PutBoolean("Reverse Soft Limit Enabled",
-                                    m_motor.IsSoftLimitEnabled(rev::CANSparkMax::SoftLimitDirection::kReverse));
-    frc::SmartDashboard::PutNumber("Forward Soft Limit", 
-                                    m_motor.GetSoftLimit(rev::CANSparkMax::SoftLimitDirection::kForward));
-    frc::SmartDashboard::PutNumber("Reverse Soft Limit",
-                                    m_motor.GetSoftLimit(rev::CANSparkMax::SoftLimitDirection::kReverse));
+    /**
+     * The ResetMode::kResetSafeParameters constant can be used to reset
+     * the configuration parameters in the SPARK MAX to their factory
+     * default state. If PersistMode::kNoPersistParameters is passed,
+     * these parameters will not persist between power cycles.
+     */
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
+
+    fwdEnabled = m_motor.configAccessor.softLimit.GetForwardSoftLimitEnabled();
+    revEnabled = m_motor.configAccessor.softLimit.GetReverseSoftLimitEnabled();
+    fwdLimit = m_motor.configAccessor.softLimit.GetForwardSoftLimit();
+    revLimit = m_motor.configAccessor.softLimit.GetReverseSoftLimit();
+
+    frc::SmartDashboard::PutBoolean("Forward Soft Limit Enabled", fwdEnabled);
+    frc::SmartDashboard::PutBoolean("Reverse Soft Limit Enabled", revEnabled);
+
+    frc::SmartDashboard::PutNumber("Forward Soft Limit", fwdLimit);
+    frc::SmartDashboard::PutNumber("Reverse Soft Limit", revLimit);
   }
 
   void TeleopPeriodic() {
     m_motor.Set(m_stick.GetY());
-    
-    // Enable and disable the smart limits based on values read from the SmartDashboard
-    m_motor.EnableSoftLimit(rev::CANSparkMax::SoftLimitDirection::kForward, 
-                         frc::SmartDashboard::GetBoolean("Forward Soft Limit Enabled", true));
-    m_motor.EnableSoftLimit(rev::CANSparkMax::SoftLimitDirection::kReverse, 
-                         frc::SmartDashboard::GetBoolean("Reverse Soft Limit Enabled", true));
 
-    // Change the value of the limits based on values read from the SmartDashboard
-    m_motor.SetSoftLimit(rev::CANSparkMax::SoftLimitDirection::kForward, 
-                         frc::SmartDashboard::GetNumber("Forward SmaSoftrt Limit", 15));
-    m_motor.SetSoftLimit(rev::CANSparkMax::SoftLimitDirection::kReverse, 
-                         frc::SmartDashboard::GetNumber("Reverse Soft Limit", 0));
+    rev::spark::SparkMaxConfig maxConfig;
+
+    if (bool newFwdEnabled = frc::SmartDashboard::GetBoolean("Forward Soft Limit Enabled", true); newFwdEnabled != fwdEnabled)
+    {
+        fwdEnabled = newFwdEnabled;
+        maxConfig.softLimit.ForwardSoftLimitEnabled(fwdEnabled);
+    }
+    if (bool newRevEnabled = frc::SmartDashboard::GetBoolean("Reverse Soft Limit Enabled", true); newRevEnabled != revEnabled)
+    {
+        revEnabled = newRevEnabled;
+        maxConfig.softLimit.ReverseSoftLimitEnabled(revEnabled);
+    }
+
+    if (bool newFwdLimit = frc::SmartDashboard::GetNumber("Forward Soft Limit", 15); newFwdLimit != fwdLimit)
+    {
+        fwdLimit = newFwdLimit;
+        maxConfig.softLimit.ForwardSoftLimit(fwdLimit);
+    }
+    if (bool newRevLimit = frc::SmartDashboard::GetNumber("Reverse Soft Limit", 0); newRevLimit != revLimit)
+    {
+        revLimit = newRevLimit;
+        maxConfig.softLimit.ReverseSoftLimit(revLimit);
+    }
+
+    m_motor.Configure(maxConfig,
+      rev::spark::SparkMax::ResetMode::kNoResetSafeParameters,
+      rev::spark::SparkMax::PersistMode::kNoPersistParameters);
+
   }
 };
 
