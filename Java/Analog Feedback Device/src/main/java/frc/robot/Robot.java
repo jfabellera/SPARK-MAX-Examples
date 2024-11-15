@@ -7,68 +7,136 @@
 
 package frc.robot;
 
+import com.revrobotics.spark.SparkAnalogSensor;
+import com.revrobotics.spark.SparkClosedLoopController;
+import com.revrobotics.spark.SparkLowLevel.MotorType;
+import com.revrobotics.spark.SparkMax;
+import com.revrobotics.spark.SparkBase.ControlType;
+import com.revrobotics.spark.SparkBase.PersistMode;
+import com.revrobotics.spark.SparkBase.ResetMode;
+import com.revrobotics.spark.config.SparkMaxConfig;
+import com.revrobotics.spark.config.ClosedLoopConfig.FeedbackSensor;
+
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
-
-import com.revrobotics.SparkAnalogSensor;
-import com.revrobotics.SparkPIDController;
-import com.revrobotics.CANSparkMax;
-import com.revrobotics.CANSparkLowLevel.MotorType;
 
 public class Robot extends TimedRobot {
   
 
   private static final int deviceID = 1;
-  private CANSparkMax m_motor;
-  private SparkPIDController m_pidController;
+  private SparkMax motor;
+  private SparkMaxConfig motorConfig;
+  private SparkClosedLoopController closedLoopController;
   public double kP, kI, kD, kIz, kFF, kMaxOutput, kMinOutput;
-
-  /**
-   * A SparkAnalogSensor object is constructed using the GetAnalog() method on an 
-   * existing CANSparkMax object. 
-   */
-  private SparkAnalogSensor m_analogSensor;
+  private SparkAnalogSensor analogSensor;
 
   @Override
   public void robotInit() {
-    // initialize SPARK MAX with CAN ID
-    m_motor = new CANSparkMax(deviceID, MotorType.kBrushless);
-    m_analogSensor = m_motor.getAnalog(SparkAnalogSensor.Mode.kAbsolute);
-    
-    m_motor.restoreFactoryDefaults();
-
-    /**
-     * In order to use PID functionality for a controller, a SparkPIDController object
-     * is constructed by calling the getPIDController() method on an existing
-     * CANSparkMax object
+    /*
+     * Starting PID coefficients
      */
-    m_pidController = m_motor.getPIDController();
-  
-    /**
-     * The PID Controller can be configured to use the analog sensor as its feedback
-     * device with the method SetFeedbackDevice() and passing the PID Controller
-     * the SparkAnalogSensor object. 
-     */
-    m_pidController.setFeedbackDevice(m_analogSensor);
-
-    // PID coefficients
     kP = 0.1; 
     kI = 1e-4;
-    kD = 1; 
+    kD = 0.00001; 
     kIz = 0; 
     kFF = 0; 
-    kMaxOutput = 1; 
-    kMinOutput = -1;
+    kMaxOutput = 0.5; 
+    kMinOutput = 0.5;
 
-    // set PID coefficients
-    m_pidController.setP(kP);
-    m_pidController.setI(kI);
-    m_pidController.setD(kD);
-    m_pidController.setIZone(kIz);
-    m_pidController.setFF(kFF);
-    m_pidController.setOutputRange(kMinOutput, kMaxOutput);
+    /*
+     * Create a SPARK MAX object with the desired CAN-ID and type of motor connected
+     * MotorType can be either:
+     *    - MotorType.kBrushless
+     *    - MotorType.kBrushed
+     */
+    motor = new SparkMax(deviceID, MotorType.kBrushless);
+    
+    /*
+     * Create a SparkBaseConfig object that will queue up any changes we want applied to one or more SPARK MAXs.
+     * The configuration objects use setter functions that allow for chaining.
+     *  
+     * Changes made in the config will not get applied to the SPARK MAX until the configure() method is called 
+     * from a SPARK MAX object. If a SparkBaseConfig with no changes is passed to the configure() method, the SPARK 
+     * MAX's configuration will remain unchanged.
+     * 
+     * Within the base config, the following can be modified:
+     *    - Follower Mode
+     *    - Voltage Compensation
+     *    - Idle modes
+     *    - Motor inversion settings
+     *    - Closed/Open Ramp Rates
+     *    - Current Limits
+     * 
+     * The base config also contains sub configs that can be modified such as:
+     *    - AbsoluteEncoderConfig
+     *    - AlternateEncoderConfig
+     *    - Analog Sensor Config
+     *    - ClosedLoopConfig
+     *    - EncoderConfig
+     *    - LimitSwitchConfig
+     *    - SoftLimitConfig
+     *    - SignalsConfig (Status Frames)
+     *  
+     * Sub config objects can separately be created, modified and then applied to the base config by calling the apply() method.
+     */
+    motorConfig = new SparkMaxConfig();
 
-    // display PID coefficients on SmartDashboard
+    /*
+     *  Here we access the closedLoop sub config within the SparkBaseConfig to change the
+     *  feedback sensor and PID values we want by chaining together setter functions.
+     *  This is equivalent to:
+     *    MotorConfig.closedLoop.feedbackSensor(FeedbackSensor.kPrimaryEncoder);
+     *    MotorConfig.closedLoop.p(kP);
+     *    MotorConfig.closedLoop.i(kI);
+     *    ... 
+     *    MotorConfig.closedLoop.outputRange(kMinOutput, kMaxOutput);
+     */
+    motorConfig.closedLoop
+      .feedbackSensor(FeedbackSensor.kAnalogSensor)
+      .p(kP)
+      .i(kI)
+      .d(kD)
+      .iZone(kIz)
+      .velocityFF(kFF)
+      .outputRange(kMinOutput, kMaxOutput);
+
+    /*
+     * After making all the changes in the SparkBaseConfig object (motorConfig in this case), 
+     * we apply them to the SPARK MAX by calling the configure() method.
+     * 
+     * The first argument passed is the SparkBaseConfig object containing any parameter changes we 
+     * want applied
+     * 
+     * The second argument passed is the ResetMode which uses: 
+     *    - kResetSafeParameters: Restore defaults before applying parameter changes
+     *    - kNoResetSafeParameters:  Don't Restore defaults before applying parameter changes
+     * 
+     * The third argument passed is the PersistMode which uses:
+     *    - kNoPersistParameters: Parameters will be not persist over power cycles
+     *    - kPersistParameters: Parameters will persist over power cycles
+     * 
+     * In this case we will be restoring defaults, then applying our parameter values without having
+     * them persisting over power cycles.
+     */
+    motor.configure(motorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
+
+    /*
+     * A SparkAnalogSensor object is constructed using the GetAnalog() method from an 
+     * existing SparkMax object. Analog sensor position and velocity values can be retrieved 
+     * through their respective getter functions.
+     */
+    analogSensor = motor.getAnalog();
+    
+    /*
+     * In order to use PID functionality for a controller, a SparkClosedLoopController object
+     * is constructed by calling the getClosedLoopController() method on an existing
+     * SparkMax object
+     */
+    closedLoopController = motor.getClosedLoopController();
+
+    /*
+     *  Display Starting PID coefficients
+     */
     SmartDashboard.putNumber("P Gain", kP);
     SmartDashboard.putNumber("I Gain", kI);
     SmartDashboard.putNumber("D Gain", kD);
@@ -81,7 +149,9 @@ public class Robot extends TimedRobot {
 
   @Override
   public void teleopPeriodic() {
-    // read PID coefficients from SmartDashboard
+    /*
+     * Read PID coefficients from SmartDashboard for any PID coefficient changes
+     */
     double p = SmartDashboard.getNumber("P Gain", 0);
     double i = SmartDashboard.getNumber("I Gain", 0);
     double d = SmartDashboard.getNumber("D Gain", 0);
@@ -91,19 +161,26 @@ public class Robot extends TimedRobot {
     double min = SmartDashboard.getNumber("Min Output", 0);
     double rotations = SmartDashboard.getNumber("Set Rotations", 0);
 
-    // if PID coefficients on SmartDashboard have changed, write new values to controller
-    if((p != kP)) { m_pidController.setP(p); kP = p; }
-    if((i != kI)) { m_pidController.setI(i); kI = i; }
-    if((d != kD)) { m_pidController.setD(d); kD = d; }
-    if((iz != kIz)) { m_pidController.setIZone(iz); kIz = iz; }
-    if((ff != kFF)) { m_pidController.setFF(ff); kFF = ff; }
+    /*
+     * If there are any PID value changes, update variables tracking the current value
+     */
+    if((p != kP)) { motorConfig.closedLoop.p(p); kP = p; }
+    if((i != kI)) { motorConfig.closedLoop.i(i); kI = i; }
+    if((d != kD)) { motorConfig.closedLoop.d(d); kD = d; }
+    if((iz != kIz)) { motorConfig.closedLoop.iZone(iz); kIz = iz; }
+    if((ff != kFF)) { motorConfig.closedLoop.velocityFF(ff); kFF = ff; }
     if((max != kMaxOutput) || (min != kMinOutput)) { 
-      m_pidController.setOutputRange(min, max); 
+      motorConfig.closedLoop.outputRange(min, max); 
       kMinOutput = min; kMaxOutput = max; 
     }
 
+    /*
+     * Apply any changes to the SPARK MAX
+     */
+    motor.configure(motorConfig, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
+
     /**
-     * PIDController objects are commanded to a set point using the 
+     * Closed Loop Controller objects are commanded to a set point using the 
      * SetReference() method.
      * 
      * The first parameter is the value of the set point, whose units vary
@@ -111,9 +188,17 @@ public class Robot extends TimedRobot {
      * 
      * The second parameter is the control type can be set to one of four 
      * parameters:
+     *  com.revrobotics.spark.SparkBase.ControlType.kDutyCycle
+     *  com.revrobotics.spark.SparkBase.ControlType.kPosition
+     *  com.revrobotics.spark.SparkBase.ControlType.kVelocity
+     *  com.revrobotics.spark.SparkBase.ControlType.kVoltage
      */
+    closedLoopController.setReference(rotations, ControlType.kPosition);
     
+    /*
+     * Display our current setpoint target and processVariable
+     */
     SmartDashboard.putNumber("SetPoint", rotations);
-    SmartDashboard.putNumber("ProcessVariable", m_analogSensor.getPosition());
+    SmartDashboard.putNumber("ProcessVariable", analogSensor.getPosition());
   }
 }

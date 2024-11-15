@@ -9,6 +9,6 @@ Set the variables at the beginning of the example to match your setup.
 
 Control the motor's velocity by moving the joystick up or down.
 
-Forward/reverse limit switches can be toggled on/off on SmartDashboard.
+Forward/reverse limit switches can be enabled/disabled on SmartDashboard.
 
 The state of the limit switches will be displayed on SmartDashboard.
