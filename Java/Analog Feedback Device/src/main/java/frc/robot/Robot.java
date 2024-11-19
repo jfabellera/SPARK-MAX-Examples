@@ -21,184 +21,71 @@ import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 public class Robot extends TimedRobot {
-  
 
-  private static final int deviceID = 1;
   private SparkMax motor;
   private SparkMaxConfig motorConfig;
   private SparkClosedLoopController closedLoopController;
-  public double kP, kI, kD, kIz, kFF, kMaxOutput, kMinOutput;
   private SparkAnalogSensor analogSensor;
 
   @Override
   public void robotInit() {
     /*
-     * Starting PID coefficients
+     * Initialize the SPARK MAX and get its analog sensor and closed loop
+     * controller objects for later use.
      */
-    kP = 0.1; 
-    kI = 1e-4;
-    kD = 0.00001; 
-    kIz = 0; 
-    kFF = 0; 
-    kMaxOutput = 0.5; 
-    kMinOutput = 0.5;
+    motor = new SparkMax(1, MotorType.kBrushless);
+    analogSensor = motor.getAnalog();
+    closedLoopController = motor.getClosedLoopController();
 
     /*
-     * Create a SPARK MAX object with the desired CAN-ID and type of motor connected
-     * MotorType can be either:
-     *    - MotorType.kBrushless
-     *    - MotorType.kBrushed
-     */
-    motor = new SparkMax(deviceID, MotorType.kBrushless);
-    
-    /*
-     * Create a SparkBaseConfig object that will queue up any changes we want applied to one or more SPARK MAXs.
-     * The configuration objects use setter functions that allow for chaining.
-     *  
-     * Changes made in the config will not get applied to the SPARK MAX until the configure() method is called 
-     * from a SPARK MAX object. If a SparkBaseConfig with no changes is passed to the configure() method, the SPARK 
-     * MAX's configuration will remain unchanged.
-     * 
-     * Within the base config, the following can be modified:
-     *    - Follower Mode
-     *    - Voltage Compensation
-     *    - Idle modes
-     *    - Motor inversion settings
-     *    - Closed/Open Ramp Rates
-     *    - Current Limits
-     * 
-     * The base config also contains sub configs that can be modified such as:
-     *    - AbsoluteEncoderConfig
-     *    - AlternateEncoderConfig
-     *    - Analog Sensor Config
-     *    - ClosedLoopConfig
-     *    - EncoderConfig
-     *    - LimitSwitchConfig
-     *    - SoftLimitConfig
-     *    - SignalsConfig (Status Frames)
-     *  
-     * Sub config objects can separately be created, modified and then applied to the base config by calling the apply() method.
+     * Create a new SPARK MAX configuration object. This will store the
+     * configuration parameters for the SPARK MAX that we will set below.
      */
     motorConfig = new SparkMaxConfig();
 
     /*
-     *  Here we access the closedLoop sub config within the SparkBaseConfig to change the
-     *  feedback sensor and PID values we want by chaining together setter functions.
-     *  This is equivalent to:
-     *    MotorConfig.closedLoop.feedbackSensor(FeedbackSensor.kPrimaryEncoder);
-     *    MotorConfig.closedLoop.p(kP);
-     *    MotorConfig.closedLoop.i(kI);
-     *    ... 
-     *    MotorConfig.closedLoop.outputRange(kMinOutput, kMaxOutput);
+     * Configure the analog sensor. For this specific example, the analog sensor's
+     * positive direction is inverse of the motor's.
      */
-    motorConfig.closedLoop
-      .feedbackSensor(FeedbackSensor.kAnalogSensor)
-      .p(kP)
-      .i(kI)
-      .d(kD)
-      .iZone(kIz)
-      .velocityFF(kFF)
-      .outputRange(kMinOutput, kMaxOutput);
+    motorConfig.analogSensor.inverted(true);
 
     /*
-     * After making all the changes in the SparkBaseConfig object (motorConfig in this case), 
-     * we apply them to the SPARK MAX by calling the configure() method.
-     * 
-     * The first argument passed is the SparkBaseConfig object containing any parameter changes we 
-     * want applied
-     * 
-     * The second argument passed is the ResetMode which uses: 
-     *    - kResetSafeParameters: Restore defaults before applying parameter changes
-     *    - kNoResetSafeParameters:  Don't Restore defaults before applying parameter changes
-     * 
-     * The third argument passed is the PersistMode which uses:
-     *    - kNoPersistParameters: Parameters will be not persist over power cycles
-     *    - kPersistParameters: Parameters will persist over power cycles
-     * 
-     * In this case we will be restoring defaults, then applying our parameter values without having
-     * them persisting over power cycles.
+     * Configure the closed loop controller. We want to make sure we set the
+     * feedback sensor as the analog sensor.
+     */
+    motorConfig.closedLoop
+        .feedbackSensor(FeedbackSensor.kAnalogSensor)
+        .p(0.001)
+        .i(0)
+        .d(0)
+        .outputRange(-1, 1);
+
+    /*
+     * Apply the configuration to the SPARK MAX.
+     *
+     * kResetSafeParameters is used to get the SPARK MAX to a known state. This
+     * is useful in case the SPARK MAX is replaced.
+     *
+     * kPersistParameters is used to ensure the configuration is not lost when
+     * the SPARK MAX loses power. This is useful for power cycles that may occur
+     * mid-operation.
      */
     motor.configure(motorConfig, ResetMode.kResetSafeParameters, PersistMode.kNoPersistParameters);
 
-    /*
-     * A SparkAnalogSensor object is constructed using the GetAnalog() method from an 
-     * existing SparkMax object. Analog sensor position and velocity values can be retrieved 
-     * through their respective getter functions.
-     */
-    analogSensor = motor.getAnalog();
-    
-    /*
-     * In order to use PID functionality for a controller, a SparkClosedLoopController object
-     * is constructed by calling the getClosedLoopController() method on an existing
-     * SparkMax object
-     */
-    closedLoopController = motor.getClosedLoopController();
-
-    /*
-     *  Display Starting PID coefficients
-     */
-    SmartDashboard.putNumber("P Gain", kP);
-    SmartDashboard.putNumber("I Gain", kI);
-    SmartDashboard.putNumber("D Gain", kD);
-    SmartDashboard.putNumber("I Zone", kIz);
-    SmartDashboard.putNumber("Feed Forward", kFF);
-    SmartDashboard.putNumber("Max Output", kMaxOutput);
-    SmartDashboard.putNumber("Min Output", kMinOutput);
-    SmartDashboard.putNumber("Set Rotations", 0);
+    // Initialize target position value on SmartDashboard
+    SmartDashboard.setDefaultNumber("Target Position", 0);
   }
 
   @Override
   public void teleopPeriodic() {
     /*
-     * Read PID coefficients from SmartDashboard for any PID coefficient changes
+     * Get the target position from SmartDashboard and set it as the setpoint
+     * for the closed loop controller.
      */
-    double p = SmartDashboard.getNumber("P Gain", 0);
-    double i = SmartDashboard.getNumber("I Gain", 0);
-    double d = SmartDashboard.getNumber("D Gain", 0);
-    double iz = SmartDashboard.getNumber("I Zone", 0);
-    double ff = SmartDashboard.getNumber("Feed Forward", 0);
-    double max = SmartDashboard.getNumber("Max Output", 0);
-    double min = SmartDashboard.getNumber("Min Output", 0);
-    double rotations = SmartDashboard.getNumber("Set Rotations", 0);
+    double targetPosition = SmartDashboard.getNumber("Target Position", 0);
+    closedLoopController.setReference(targetPosition, ControlType.kPosition);
 
-    /*
-     * If there are any PID value changes, update variables tracking the current value
-     */
-    if((p != kP)) { motorConfig.closedLoop.p(p); kP = p; }
-    if((i != kI)) { motorConfig.closedLoop.i(i); kI = i; }
-    if((d != kD)) { motorConfig.closedLoop.d(d); kD = d; }
-    if((iz != kIz)) { motorConfig.closedLoop.iZone(iz); kIz = iz; }
-    if((ff != kFF)) { motorConfig.closedLoop.velocityFF(ff); kFF = ff; }
-    if((max != kMaxOutput) || (min != kMinOutput)) { 
-      motorConfig.closedLoop.outputRange(min, max); 
-      kMinOutput = min; kMaxOutput = max; 
-    }
-
-    /*
-     * Apply any changes to the SPARK MAX
-     */
-    motor.configure(motorConfig, ResetMode.kNoResetSafeParameters, PersistMode.kNoPersistParameters);
-
-    /**
-     * Closed Loop Controller objects are commanded to a set point using the 
-     * SetReference() method.
-     * 
-     * The first parameter is the value of the set point, whose units vary
-     * depending on the control type set in the second parameter.
-     * 
-     * The second parameter is the control type can be set to one of four 
-     * parameters:
-     *  com.revrobotics.spark.SparkBase.ControlType.kDutyCycle
-     *  com.revrobotics.spark.SparkBase.ControlType.kPosition
-     *  com.revrobotics.spark.SparkBase.ControlType.kVelocity
-     *  com.revrobotics.spark.SparkBase.ControlType.kVoltage
-     */
-    closedLoopController.setReference(rotations, ControlType.kPosition);
-    
-    /*
-     * Display our current setpoint target and processVariable
-     */
-    SmartDashboard.putNumber("SetPoint", rotations);
-    SmartDashboard.putNumber("ProcessVariable", analogSensor.getPosition());
+    // Display the actual position of the analog sensor
+    SmartDashboard.putNumber("Actual Position", analogSensor.getPosition());
   }
 }
